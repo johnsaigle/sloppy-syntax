@@ -6,7 +6,7 @@ use clap::Parser;
 #[derive(Parser)]
 #[command(
     name = "sloppy-syntax",
-    about = "Detect LLM cliches in text and output JSON"
+    about = "Detect LLM cliches in text"
 )]
 pub struct Args {
     #[arg(help = "Text to analyze directly", conflicts_with = "file")]
@@ -15,7 +15,10 @@ pub struct Args {
     #[arg(short, long, help = "Read text from a file")]
     pub file: Option<PathBuf>,
 
-    #[arg(short, long, help = "Pretty-print JSON output")]
+    #[arg(long, help = "Output as JSON instead of human-readable text")]
+    pub json: bool,
+
+    #[arg(short, long, help = "Pretty-print JSON output (only with --json)")]
     pub pretty: bool,
 
     #[arg(long, value_delimiter = ',', help = "Disable specific patterns by id")]
