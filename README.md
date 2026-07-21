@@ -7,14 +7,14 @@ Detect LLM cliches and AI-slop rhetorical patterns in text.
 ## Installation
 
 ```bash
-cargo install --git https://github.com/johnsaigle/llm-cliche-finder
+cargo install --git https://github.com/johnsaigle/sloppy-syntax
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/johnsaigle/llm-cliche-finder
-cd llm-cliche-finder
+git clone https://github.com/johnsaigle/sloppy-syntax
+cd sloppy-syntax
 cargo build --release
 ```
 
