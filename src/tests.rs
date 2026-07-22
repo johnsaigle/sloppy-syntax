@@ -351,6 +351,33 @@ fn test_stock_phrases_from_samples() {
 }
 
 #[test]
+fn test_semicolon_in_sentence() {
+    let patterns = build_patterns();
+    let semi = find_pattern(&patterns, "semicolon-in-sentence");
+    let combo = find_pattern(&patterns, "semicolon-and-emdash");
+
+    assert_eq!((semi.finder)("This is a test; however, it fails.").len(), 1);
+    assert!((combo.finder)("This is a test; however, it fails.").is_empty());
+
+    assert!((semi.finder)("This is plain text.").is_empty());
+    assert!((combo.finder)("This is plain text.").is_empty());
+
+    let text = "First sentence. Second one; with semicolon. Third one.";
+    assert_eq!((semi.finder)(text).len(), 1);
+
+    assert!((combo.finder)("Just a dash \u{2014} no semicolon here.").is_empty());
+
+    assert_eq!(
+        (combo.finder)("This uses both \u{2014} a dash; and a semicolon.").len(),
+        1
+    );
+    assert!((semi.finder)("This uses both \u{2014} a dash; and a semicolon.").is_empty());
+
+    assert!((semi.finder)("No punctuation here.").is_empty());
+    assert!((combo.finder)("No punctuation here.").is_empty());
+}
+
+#[test]
 fn test_score_is_one_to_five() {
     let patterns = build_patterns();
     let all: HashSet<&str> = patterns.iter().map(|p| p.id).collect();

@@ -143,6 +143,45 @@ fn make_sentence_no_chain_finder() -> impl Fn(&str) -> Vec<RawMatch> {
     }
 }
 
+fn find_semicolons(text: &str, require_dash: bool) -> Vec<RawMatch> {
+    let mut found = Vec::new();
+    let mut sentence_start = 0;
+
+    for sentence_end in text
+        .char_indices()
+        .filter_map(|(i, ch)| {
+            matches!(ch, '.' | '!' | '?' | '…' | '\n').then_some(i + ch.len_utf8())
+        })
+        .chain(std::iter::once(text.len()))
+    {
+        if sentence_end <= sentence_start {
+            continue;
+        }
+        let sentence = &text[sentence_start..sentence_end];
+
+        let has_dash = sentence.contains('\u{2014}') || sentence.contains('\u{2013}');
+
+        if require_dash != has_dash {
+            sentence_start = sentence_end;
+            continue;
+        }
+
+        if let Some(pos) = sentence.find(';') {
+            found.push(RawMatch {
+                start: sentence_start + pos,
+                end: sentence_start + pos + 1,
+                count: None,
+                badge: None,
+                badge_title: None,
+            });
+        }
+
+        sentence_start = sentence_end;
+    }
+
+    found
+}
+
 fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
     let mut found = Vec::new();
     let mut sentence_start = 0;
@@ -322,6 +361,7 @@ fn build_original_patterns() -> Vec<Pattern> {
     ]
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_additional_patterns() -> Vec<Pattern> {
     vec![
         Pattern {
@@ -415,6 +455,18 @@ fn build_additional_patterns() -> Vec<Pattern> {
             finder: Box::new(make_regex_finder(
                 r"(?i)\b(?:AI\s+assistant|pair\s+programmer)\b",
             )),
+        },
+        Pattern {
+            id: "semicolon-in-sentence",
+            name: "Semicolon in a sentence",
+            weight: 2,
+            finder: Box::new(|text| find_semicolons(text, false)),
+        },
+        Pattern {
+            id: "semicolon-and-emdash",
+            name: "Semicolon + em-dash in sentence",
+            weight: 3,
+            finder: Box::new(|text| find_semicolons(text, true)),
         },
     ]
 }
