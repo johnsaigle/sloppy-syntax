@@ -289,6 +289,10 @@ fn test_low_weight_style_markers() {
     let dashes = find_pattern(&patterns, "em-dash-asides");
     assert_eq!((dashes.finder)("One — aside — is enough.").len(), 2);
     assert!((dashes.finder)("One — rare dash is fine.").is_empty());
+    assert!(
+        (dashes.finder)("Use —quiet —verbose for more output.").is_empty(),
+        "CLI flags with dashes should not trigger"
+    );
 
     let obviously = find_pattern(&patterns, "sentence-final-obviously");
     assert_eq!((obviously.finder)("Testnet first, obviously.").len(), 1);
@@ -315,6 +319,10 @@ fn test_unicode_typography_in_ascii_english() {
     assert!((pattern.finder)("The model can't see -- but it can reason...").is_empty());
     assert!((pattern.finder)("Café déjà vu — résumé…").is_empty());
     assert!((pattern.finder)("One rare em dash — is not enough.").is_empty());
+    assert!(
+        (pattern.finder)("Run with —quiet —no-progress to avoid clutter.").is_empty(),
+        "CLI flag dashes should not count as typography marks"
+    );
 }
 
 #[test]

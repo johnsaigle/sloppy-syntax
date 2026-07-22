@@ -162,7 +162,25 @@ fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
         let total_letters = sentence.chars().filter(|ch| ch.is_alphabetic()).count();
         let typography: Vec<_> = sentence
             .char_indices()
-            .filter(|(_, ch)| matches!(ch, '–' | '—' | '…' | '“' | '”' | '‘' | '’' | '\u{00a0}'))
+            .filter(|(i, ch)| {
+                if !matches!(
+                    ch,
+                    '–' | '—' | '…' | '\u{201c}' | '\u{201d}' | '\u{2018}' | '\u{2019}' | '\u{00a0}'
+                ) {
+                    return false;
+                }
+                if matches!(ch, '–' | '—') {
+                    let left_ws = *i == 0
+                        || sentence.as_bytes().get(i - 1).is_some_and(u8::is_ascii_whitespace);
+                    let right_ws = i + ch.len_utf8() >= sentence.len()
+                        || sentence
+                            .as_bytes()
+                            .get(i + ch.len_utf8())
+                            .is_some_and(u8::is_ascii_whitespace);
+                    return left_ws && right_ws;
+                }
+                true
+            })
             .collect();
 
         if typography.len() >= 2 && total_letters > 0 && ascii_letters * 10 >= total_letters * 9 {
@@ -342,7 +360,7 @@ fn build_additional_patterns() -> Vec<Pattern> {
             id: "em-dash-asides",
             name: "Repeated em-dash asides",
             weight: 1,
-            finder: Box::new(make_threshold_regex_finder(r"\u{2014}", 2)),
+            finder: Box::new(make_threshold_regex_finder(r"(?:\s|^)\u{2014}(?:\s|$)", 2)),
         },
         Pattern {
             id: "unicode-typography",
