@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::analysis::{collect_matches, sentence_bounds, slop_score};
-use crate::patterns::{Pattern, build_patterns};
+use crate::patterns::{build_patterns, Pattern};
 
 const EXAMPLE: &str = "We rebuilt the editor from the ground up. No sign-ups, no downloads, no hassle \u{2014} just paste your text and start writing. Everything runs locally in your browser.
 
@@ -347,6 +347,81 @@ fn test_stock_phrases_from_samples() {
 
     for (id, text) in cases {
         assert_eq!((find_pattern(&patterns, id).finder)(text).len(), 1, "{id}");
+    }
+}
+
+#[test]
+fn test_wikipedia_language_patterns() {
+    let patterns = build_patterns();
+    let cases = [
+        ("ai-vocab", "We delve into the intricate interplay.", 3),
+        ("not-just", "This is not just a tool, but a philosophy.", 1),
+        (
+            "note-that",
+            "It is important to note that timing matters.",
+            1,
+        ),
+        (
+            "testament",
+            "The building stands as a testament to optimism.",
+            1,
+        ),
+        (
+            "crucial-role",
+            "Volunteers play a crucial role in the program.",
+            1,
+        ),
+        (
+            "landscape",
+            "They adapted to an ever-evolving landscape.",
+            1,
+        ),
+        ("vague-experts", "Some critics have noted a decline.", 1),
+        (
+            "despite-challenges",
+            "Despite these challenges, growth continued.",
+            1,
+        ),
+        (
+            "participle-tail",
+            "Sales doubled, underscoring the strength of the brand.",
+            1,
+        ),
+        ("promo", "A hidden gem with breathtaking views.", 2),
+        ("ai-leftovers", "contentReference[oaicite:0]{index=0}", 2),
+    ];
+
+    for (id, text, expected) in cases {
+        assert_eq!(
+            (find_pattern(&patterns, id).finder)(text).len(),
+            expected,
+            "{id}"
+        );
+    }
+}
+
+#[test]
+fn test_wikipedia_language_pattern_negative_cases() {
+    let patterns = build_patterns();
+    let cases = [
+        ("ai-vocab", "The report was thorough and well organized."),
+        ("not-just", "He did not buy it."),
+        ("note-that", "Please note the door code."),
+        ("testament", "He read from the Old Testament."),
+        ("crucial-role", "He plays the role of the villain."),
+        ("landscape", "The landscape outside was gray."),
+        ("vague-experts", "Dr. Chen argued the opposite."),
+        ("despite-challenges", "The climb was a challenge."),
+        ("participle-tail", "She kept highlighting passages."),
+        ("promo", "The soup was rich and hearty."),
+        ("ai-leftovers", "The last update shipped Tuesday."),
+    ];
+
+    for (id, text) in cases {
+        assert!(
+            (find_pattern(&patterns, id).finder)(text).is_empty(),
+            "{id} unexpectedly matched"
+        );
     }
 }
 

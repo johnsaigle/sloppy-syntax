@@ -40,6 +40,8 @@ sloppy-syntax --file essay.txt --disable no-chain,sit-with
 sloppy-syntax --list-patterns
 ```
 
+Inline, file, and stdin inputs are limited to 16 MiB. File inputs must be regular files rather than symbolic links.
+
 ## Output
 
 The tool outputs JSON with this structure:
@@ -94,6 +96,19 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `real-burden` | "Real operational burden" | 1 |
 | `bold-emphasis` | Markdown bold emphasis | 1 |
 | `stock-ai-role` | "AI assistant" / "pair programmer" | 1 |
+| `ai-vocab` | AI vocabulary words | 1 |
+| `not-just` | "Not just X, but Y" | 2 |
+| `note-that` | "It's important to note" | 2 |
+| `testament` | "Stands as a testament" | 2 |
+| `crucial-role` | "Plays a crucial role" | 2 |
+| `landscape` | "Ever-evolving landscape" | 2 |
+| `vague-experts` | "Experts argue" | 2 |
+| `despite-challenges` | "Despite these challenges" | 2 |
+| `participle-tail` | Participle sentence tails | 2 |
+| `promo` | Promotional boilerplate | 1 |
+| `ai-leftovers` | Chatbot leftovers | 3 |
+| `semicolon-in-sentence` | Semicolon in a sentence | 2 |
+| `semicolon-and-emdash` | Semicolon + em-dash in sentence | 3 |
 
 ## Library usage
 

@@ -204,13 +204,22 @@ fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
             .filter(|(i, ch)| {
                 if !matches!(
                     ch,
-                    '–' | '—' | '…' | '\u{201c}' | '\u{201d}' | '\u{2018}' | '\u{2019}' | '\u{00a0}'
+                    '–' | '—'
+                        | '…'
+                        | '\u{201c}'
+                        | '\u{201d}'
+                        | '\u{2018}'
+                        | '\u{2019}'
+                        | '\u{00a0}'
                 ) {
                     return false;
                 }
                 if matches!(ch, '–' | '—') {
                     let left_ws = *i == 0
-                        || sentence.as_bytes().get(i - 1).is_some_and(u8::is_ascii_whitespace);
+                        || sentence
+                            .as_bytes()
+                            .get(i - 1)
+                            .is_some_and(u8::is_ascii_whitespace);
                     let right_ws = i + ch.len_utf8() >= sentence.len()
                         || sentence
                             .as_bytes()
@@ -454,6 +463,94 @@ fn build_additional_patterns() -> Vec<Pattern> {
             weight: 1,
             finder: Box::new(make_regex_finder(
                 r"(?i)\b(?:AI\s+assistant|pair\s+programmer)\b",
+            )),
+        },
+        Pattern {
+            id: "ai-vocab",
+            name: "AI vocabulary words",
+            weight: 1,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:delv(?:e|es|ed|ing)|tapestr(?:y|ies)|meticulous(?:ly)?|pivotal|intricate(?:ly)?|intricacies|interplay|underscor(?:e|es|ed|ing)|garner(?:s|ed|ing)?|bolster(?:s|ed|ing)?|vibrant|bustling|multifaceted|seamless(?:ly)?|commendable|ever-evolving)\b",
+            )),
+        },
+        Pattern {
+            id: "not-just",
+            name: "Not just X, but Y",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bnot\s+(?:just|only|merely|simply)\s+[^.!?\n;]*?\bbut(?:\s+also)?\b",
+            )),
+        },
+        Pattern {
+            id: "note-that",
+            name: "It's important to note",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bit(?:['\u{2019}]s|\s+(?:is|was))\s+(?:also\s+)?(?:important|worth|crucial|essential|vital)\s+(?:to\s+(?:note|remember|understand|recognize|mention)|noting|mentioning|remembering)\b(?:\s+that\b)?|\bit\s+should\s+be\s+noted\b",
+            )),
+        },
+        Pattern {
+            id: "testament",
+            name: "Stands as a testament",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:stand|stands|stood|serve|serves|served|standing|serving)\s+as\s+(?:a|an)\s+(?:\w+\s+)?(?:testament|reminder)\b|\b(?:is|was|are|were|remain|remains)\s+a\s+(?:\w+\s+)?testament\s+to\b",
+            )),
+        },
+        Pattern {
+            id: "crucial-role",
+            name: "Plays a crucial role",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bplay(?:s|ed|ing)?\s+(?:a|an)\s+(?:\w+\s+)?(?:crucial|pivotal|vital|key|significant|central|critical|important)\s+role\b",
+            )),
+        },
+        Pattern {
+            id: "landscape",
+            name: "Ever-evolving landscape",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:ever-)?(?:evolving|changing|shifting)\s+landscape\b|\bin\s+today['\u{2019}]s\s+(?:fast-paced|ever-changing|ever-evolving|digital|modern|competitive)\s+\w+",
+            )),
+        },
+        Pattern {
+            id: "vague-experts",
+            name: "Experts argue",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:many|some|several|most|numerous)?\s*(?:experts|critics|observers|scholars|analysts|commentators)\s+(?:have\s+|often\s+|widely\s+)?(?:argu(?:e|es|ed)|not(?:e|es|ed)|suggest(?:s|ed)?|believ(?:e|es|ed)|agree[ds]?|contend(?:s|ed)?|observ(?:e|es|ed)|caution(?:s|ed)?|claim(?:s|ed)?|cit(?:e|es|ed)|point(?:s|ed)?\s+out)\b|\bindustry\s+reports?\s+(?:suggest|indicate|show)\w*\b",
+            )),
+        },
+        Pattern {
+            id: "despite-challenges",
+            name: "Despite these challenges",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bdespite\s+(?:these|those|such|its|their|the|numerous|significant|ongoing)\s+(?:\w+\s+)?challenges\b|\bfac(?:e|es|ed|ing)\s+(?:several|numerous|many|significant|various|a\s+number\s+of)\s+challenges\b|\bchallenges\s+remain\b|\bremains\s+to\s+be\s+seen\b",
+            )),
+        },
+        Pattern {
+            id: "participle-tail",
+            name: "Participle sentence tails",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i),\s+(?:highlighting|underscoring|emphasizing|showcasing|reflecting|demonstrating|illustrating|signaling|solidifying|cementing|reinforcing|underlining)\s+(?:its|his|her|their|our|the|a|an|how|that|what|both)\b[^.!?\n]*",
+            )),
+        },
+        Pattern {
+            id: "promo",
+            name: "Promotional boilerplate",
+            weight: 1,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bnestled\s+(?:in|on|among|between|along|at)\b|\bin\s+the\s+heart\s+of\b|\brich\s+(?:cultural\s+|historical\s+)?(?:heritage|history|tapestry)\b|\bhidden\s+gem\b|\bmust-(?:visit|see|try)\b|\bbreathtaking\b|\bboasts?\s+(?:a|an|the)\b|\bstunning\s+(?:views?|scenery|architecture|backdrop)\b",
+            )),
+        },
+        Pattern {
+            id: "ai-leftovers",
+            name: "Chatbot leftovers",
+            weight: 3,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bas\s+an\s+ai(?:\s+language)?\s+model\b|\bas\s+of\s+my\s+last\s+(?:update|training)\b|\bknowledge\s+cutoff\b|\bI\s+(?:cannot|can['\u{2019}]t|do\s+not|don['\u{2019}]t)\s+(?:browse\s+the\s+internet|access\s+real-?time)\b|contentReference|oaicite|turn0(?:search|news|image)\d*|attributableIndex|utm_source=",
             )),
         },
         Pattern {
