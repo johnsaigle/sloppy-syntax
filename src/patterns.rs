@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
 
@@ -251,6 +253,250 @@ fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
     found
 }
 
+#[derive(Debug)]
+struct AlliterationToken {
+    start: usize,
+    end: usize,
+    onset: char,
+    word: String,
+}
+
+#[derive(Debug)]
+struct AlliterationCluster {
+    start: usize,
+    end: usize,
+    onset: char,
+    count: usize,
+}
+
+fn is_function_word(word: &str) -> bool {
+    matches!(
+        word,
+        "a" | "an"
+            | "and"
+            | "are"
+            | "as"
+            | "at"
+            | "be"
+            | "been"
+            | "being"
+            | "but"
+            | "by"
+            | "can"
+            | "could"
+            | "did"
+            | "didn't"
+            | "do"
+            | "does"
+            | "don't"
+            | "for"
+            | "from"
+            | "had"
+            | "has"
+            | "have"
+            | "he"
+            | "her"
+            | "hers"
+            | "him"
+            | "his"
+            | "i"
+            | "if"
+            | "in"
+            | "into"
+            | "is"
+            | "it"
+            | "its"
+            | "me"
+            | "my"
+            | "nor"
+            | "not"
+            | "of"
+            | "on"
+            | "or"
+            | "our"
+            | "ours"
+            | "she"
+            | "so"
+            | "than"
+            | "that"
+            | "the"
+            | "their"
+            | "theirs"
+            | "them"
+            | "then"
+            | "there"
+            | "these"
+            | "they"
+            | "this"
+            | "those"
+            | "to"
+            | "us"
+            | "was"
+            | "we"
+            | "were"
+            | "what"
+            | "when"
+            | "where"
+            | "which"
+            | "who"
+            | "why"
+            | "will"
+            | "with"
+            | "would"
+            | "you"
+            | "your"
+            | "yours"
+    )
+}
+
+fn alliteration_clusters(
+    sentence: &str,
+    sentence_start: usize,
+    words: &Regex,
+) -> Vec<AlliterationCluster> {
+    let tokens: Vec<_> = words
+        .find_iter(sentence)
+        .filter_map(|m| {
+            let word = m.as_str().to_lowercase();
+            if is_function_word(&word) {
+                return None;
+            }
+            Some(AlliterationToken {
+                start: sentence_start + m.start(),
+                end: sentence_start + m.end(),
+                onset: word.chars().next()?,
+                word,
+            })
+        })
+        .collect();
+
+    let mut by_onset: BTreeMap<char, Vec<usize>> = BTreeMap::new();
+    for (index, token) in tokens.iter().enumerate() {
+        by_onset.entry(token.onset).or_default().push(index);
+    }
+
+    let mut clusters = Vec::new();
+    for (onset, positions) in by_onset {
+        let mut best = None;
+        let mut run_start = 0;
+        while run_start < positions.len() {
+            let mut run_end = run_start + 1;
+            while run_end < positions.len() && positions[run_end] - positions[run_end - 1] <= 3 {
+                run_end += 1;
+            }
+
+            let nearby = &positions[run_start..run_end];
+            if nearby.len() >= 2 {
+                let first = nearby[0];
+                let last = nearby[nearby.len() - 1];
+                let span_words = last - first + 1;
+                let distinct_words = nearby
+                    .iter()
+                    .map(|index| tokens[*index].word.as_str())
+                    .collect::<BTreeSet<_>>()
+                    .len();
+                if distinct_words >= 2 && nearby.len() * 3 >= span_words * 2 {
+                    let candidate = AlliterationCluster {
+                        start: tokens[first].start,
+                        end: tokens[last].end,
+                        onset,
+                        count: nearby.len(),
+                    };
+                    if best
+                        .as_ref()
+                        .is_none_or(|current: &AlliterationCluster| candidate.count > current.count)
+                    {
+                        best = Some(candidate);
+                    }
+                }
+            }
+            run_start = run_end;
+        }
+        if let Some(cluster) = best {
+            clusters.push(cluster);
+        }
+    }
+    clusters.sort_by_key(|cluster| cluster.start);
+    clusters
+}
+
+fn make_alliteration_finder(multiple: bool) -> impl Fn(&str) -> Vec<RawMatch> {
+    let words =
+        Regex::new(r"(?u)\p{L}[\p{L}\p{M}'\u{2019}-]*").expect("invalid alliteration word regex");
+
+    move |text: &str| {
+        let mut found = Vec::new();
+        let mut sentence_start = 0;
+        for sentence_end in text
+            .char_indices()
+            .filter_map(|(i, ch)| {
+                matches!(ch, '.' | '!' | '?' | '…' | '\n').then_some(i + ch.len_utf8())
+            })
+            .chain(std::iter::once(text.len()))
+        {
+            if sentence_end <= sentence_start {
+                continue;
+            }
+            let clusters =
+                alliteration_clusters(&text[sentence_start..sentence_end], sentence_start, &words);
+            let pair_clusters: Vec<_> = clusters
+                .iter()
+                .filter(|cluster| cluster.count >= 2)
+                .collect();
+
+            if pair_clusters.len() >= 2 {
+                if multiple {
+                    let start = pair_clusters
+                        .iter()
+                        .map(|cluster| cluster.start)
+                        .min()
+                        .unwrap();
+                    let end = pair_clusters
+                        .iter()
+                        .map(|cluster| cluster.end)
+                        .max()
+                        .unwrap();
+                    let count = pair_clusters.iter().map(|cluster| cluster.count).sum();
+                    let badge = pair_clusters
+                        .iter()
+                        .map(|cluster| format!("{} x{}", cluster.onset, cluster.count))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    found.push(RawMatch {
+                        start,
+                        end,
+                        count: Some(count),
+                        badge: Some(badge),
+                        badge_title: Some(format!(
+                            "{} distinct alliterative groups in this sentence",
+                            pair_clusters.len()
+                        )),
+                    });
+                }
+            } else if !multiple {
+                found.extend(
+                    clusters
+                        .iter()
+                        .filter(|cluster| cluster.count >= 3)
+                        .map(|cluster| RawMatch {
+                            start: cluster.start,
+                            end: cluster.end,
+                            count: Some(cluster.count),
+                            badge: Some(format!("{} x{}", cluster.onset, cluster.count)),
+                            badge_title: Some(format!(
+                                "{} nearby words begin with {}",
+                                cluster.count, cluster.onset
+                            )),
+                        }),
+                );
+            }
+
+            sentence_start = sentence_end;
+        }
+        found
+    }
+}
+
 #[must_use]
 pub fn build_patterns() -> Vec<Pattern> {
     let mut patterns = build_original_patterns();
@@ -416,6 +662,18 @@ fn build_additional_patterns() -> Vec<Pattern> {
             name: "Polished Unicode punctuation",
             weight: 1,
             finder: Box::new(find_unicode_typography),
+        },
+        Pattern {
+            id: "alliteration",
+            name: "Repeated alliteration",
+            weight: 1,
+            finder: Box::new(make_alliteration_finder(false)),
+        },
+        Pattern {
+            id: "multiple-alliteration",
+            name: "Multiple alliterations in one sentence",
+            weight: 4,
+            finder: Box::new(make_alliteration_finder(true)),
         },
         Pattern {
             id: "sentence-final-obviously",

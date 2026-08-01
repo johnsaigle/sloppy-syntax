@@ -92,6 +92,8 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `bottom-line-heading` | "The Bottom Line" heading | 2 |
 | `em-dash-asides` | Repeated em-dash asides | 1 |
 | `unicode-typography` | Polished Unicode punctuation | 1 |
+| `alliteration` | Three or more nearby words with the same initial | 1 |
+| `multiple-alliteration` | Multiple alliterative groups in one sentence | 4 |
 | `sentence-final-obviously` | Sentence-final "obviously" | 1 |
 | `real-burden` | "Real operational burden" | 1 |
 | `bold-emphasis` | Markdown bold emphasis | 1 |

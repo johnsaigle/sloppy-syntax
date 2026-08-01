@@ -453,6 +453,46 @@ fn test_semicolon_in_sentence() {
 }
 
 #[test]
+fn test_alliteration() {
+    let patterns = build_patterns();
+    let single = find_pattern(&patterns, "alliteration");
+    let multiple = find_pattern(&patterns, "multiple-alliteration");
+
+    let found = (single.finder)("Clear, concise, compelling communication matters.");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(4));
+    assert_eq!(found[0].badge.as_deref(), Some("c x4"));
+
+    assert!((single.finder)("Funny failure is possible.").is_empty());
+    assert!(
+        (single.finder)("Clear APIs help developers produce concise documentation.").is_empty()
+    );
+    assert!((single.finder)("Very very very useful.").is_empty());
+    assert!((multiple.finder)("Funny failure is possible.").is_empty());
+}
+
+#[test]
+fn test_multiple_alliterations_in_one_sentence() {
+    let patterns = build_patterns();
+    let single = find_pattern(&patterns, "alliteration");
+    let multiple = find_pattern(&patterns, "multiple-alliteration");
+    let text =
+        "I didn't want to sandpaper the sentences into sameness, as that would be a funny failure.";
+
+    assert!((single.finder)(text).is_empty());
+    let found = (multiple.finder)(text);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(5));
+    assert_eq!(found[0].badge.as_deref(), Some("s x3, f x2"));
+    assert_eq!(multiple.weight, 4);
+
+    assert!(
+        (multiple.finder)("Simple systems save time. Funny failures happen elsewhere.").is_empty(),
+        "alliterations in separate sentences must not be combined"
+    );
+}
+
+#[test]
 fn test_score_is_one_to_five() {
     let patterns = build_patterns();
     let all: HashSet<&str> = patterns.iter().map(|p| p.id).collect();
