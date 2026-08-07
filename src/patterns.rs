@@ -213,6 +213,7 @@ fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
                         | '\u{2018}'
                         | '\u{2019}'
                         | '\u{00a0}'
+                        | '\u{2192}'
                 ) {
                     return false;
                 }
