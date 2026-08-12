@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::analysis::{collect_matches, sentence_bounds, slop_score};
-use crate::patterns::{build_patterns, Pattern};
+use crate::patterns::{Pattern, build_patterns};
 
 const EXAMPLE: &str = "We rebuilt the editor from the ground up. No sign-ups, no downloads, no hassle \u{2014} just paste your text and start writing. Everything runs locally in your browser.
 
@@ -316,9 +316,14 @@ fn test_unicode_typography_in_ascii_english() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].count, Some(3));
 
+    let found = (pattern.finder)("The condition is ready ∧ valid ∨ authorized ‖ approved.");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(3));
+
     assert!((pattern.finder)("The model can't see -- but it can reason...").is_empty());
     assert!((pattern.finder)("Café déjà vu — résumé…").is_empty());
     assert!((pattern.finder)("One rare em dash — is not enough.").is_empty());
+    assert!((pattern.finder)("The condition is valid ∧ ready.").is_empty());
     assert!(
         (pattern.finder)("Run with —quiet —no-progress to avoid clutter.").is_empty(),
         "CLI flag dashes should not count as typography marks"
@@ -450,6 +455,47 @@ fn test_semicolon_in_sentence() {
 
     assert!((semi.finder)("No punctuation here.").is_empty());
     assert!((combo.finder)("No punctuation here.").is_empty());
+}
+
+#[test]
+fn test_overloaded_asides() {
+    let patterns = build_patterns();
+    let pattern = find_pattern(&patterns, "overloaded-asides");
+    let sample = "-- 'WormholeMessage'. The message carries the emitter's identity components\n\
+-- (the watcher derives the 32-byte address as keccak256 over them); the second\n\
+-- publish addresses the sequence-bumped successor directly via the cid\n\
+-- 'PublishMessage' returns — no ACS re-resolution needed.";
+
+    let found = (pattern.finder)(sample);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(3));
+    assert_eq!(pattern.weight, 8);
+
+    assert!(
+        (pattern.finder)(
+            "The watcher derives the address (from the emitter identity); the publisher then sends the resulting message."
+        )
+        .is_empty(),
+        "two interruptions are not enough"
+    );
+    assert!(
+        (pattern.finder)(
+            "-- This long source comment wraps onto another line with enough ordinary words\n-- to clear the length threshold but contains no actual aside punctuation."
+        )
+        .is_empty(),
+        "line-comment prefixes are not prose dashes"
+    );
+}
+
+#[test]
+fn test_overloaded_asides_produce_high_score() {
+    let patterns = build_patterns();
+    let all: HashSet<&str> = patterns.iter().map(|p| p.id).collect();
+    let text = "The message carries the emitter identity (which the watcher hashes into an address); the publisher then routes the sequence-bumped successor directly — without resolving the account again.";
+    let (matches, _) = collect_matches(text, &all, &patterns);
+
+    assert!(matches.iter().any(|m| m.pattern == "overloaded-asides"));
+    assert!(slop_score(text, &matches) >= 4);
 }
 
 #[test]

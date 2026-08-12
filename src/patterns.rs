@@ -184,6 +184,102 @@ fn find_semicolons(text: &str, require_dash: bool) -> Vec<RawMatch> {
     found
 }
 
+fn is_comment_prefix(sentence: &str, dash_start: usize) -> bool {
+    sentence[..dash_start]
+        .rsplit_once('\n')
+        .map_or(dash_start == 0, |(_, prefix)| prefix.trim().is_empty())
+}
+
+fn find_overloaded_sentences(text: &str) -> Vec<RawMatch> {
+    let mut found = Vec::new();
+    let mut sentence_start = 0;
+
+    for sentence_end in text
+        .char_indices()
+        .filter_map(|(i, ch)| matches!(ch, '.' | '!' | '?' | '…').then_some(i + ch.len_utf8()))
+        .chain(std::iter::once(text.len()))
+    {
+        if sentence_end <= sentence_start {
+            continue;
+        }
+        let sentence = &text[sentence_start..sentence_end];
+        let word_count = sentence
+            .split_whitespace()
+            .filter(|word| word.chars().any(char::is_alphabetic))
+            .count();
+        if word_count < 20 {
+            sentence_start = sentence_end;
+            continue;
+        }
+
+        let mut markers = Vec::new();
+        let mut kinds = BTreeSet::new();
+
+        for (offset, ch) in sentence.char_indices() {
+            if ch == ';' {
+                markers.push((offset, offset + 1));
+                kinds.insert("semicolon");
+            } else if matches!(ch, '—' | '–') {
+                let left_ws = offset == 0 || sentence.as_bytes()[offset - 1].is_ascii_whitespace();
+                let right = offset + ch.len_utf8();
+                let right_ws =
+                    right == sentence.len() || sentence.as_bytes()[right].is_ascii_whitespace();
+                if left_ws && right_ws {
+                    markers.push((offset, right));
+                    kinds.insert("dash");
+                }
+            }
+        }
+
+        for (offset, _) in sentence.match_indices("--") {
+            let left_ws = offset == 0 || sentence.as_bytes()[offset - 1].is_ascii_whitespace();
+            let right = offset + 2;
+            let right_ws =
+                right == sentence.len() || sentence.as_bytes()[right].is_ascii_whitespace();
+            if left_ws && right_ws && !is_comment_prefix(sentence, offset) {
+                markers.push((offset, right));
+                kinds.insert("dash");
+            }
+        }
+
+        let mut open_parenthesis = None;
+        for (offset, ch) in sentence.char_indices() {
+            match ch {
+                '(' if open_parenthesis.is_none() => open_parenthesis = Some(offset),
+                ')' => {
+                    if let Some(open) = open_parenthesis.take()
+                        && sentence[open + 1..offset]
+                            .split_whitespace()
+                            .filter(|word| word.chars().any(char::is_alphabetic))
+                            .count()
+                            >= 2
+                    {
+                        markers.push((open, offset + 1));
+                        kinds.insert("parenthetical");
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if markers.len() >= 3 && (kinds.len() >= 2 || markers.len() >= 4) {
+            markers.sort_unstable();
+            let count = markers.len();
+            found.push(RawMatch {
+                start: sentence_start + markers[0].0,
+                end: sentence_start + markers[count - 1].1,
+                count: Some(count),
+                badge: Some(count.to_string()),
+                badge_title: Some(format!("{count} aside constructions in this sentence")),
+            });
+        }
+
+        sentence_start = sentence_end;
+    }
+
+    found
+}
+
 fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
     let mut found = Vec::new();
     let mut sentence_start = 0;
@@ -214,6 +310,9 @@ fn find_unicode_typography(text: &str) -> Vec<RawMatch> {
                         | '\u{2019}'
                         | '\u{00a0}'
                         | '\u{2192}'
+                        | '\u{2016}'
+                        | '\u{2227}'
+                        | '\u{2228}'
                 ) {
                     return false;
                 }
@@ -823,6 +922,12 @@ fn build_additional_patterns() -> Vec<Pattern> {
             name: "Semicolon + em-dash in sentence",
             weight: 3,
             finder: Box::new(|text| find_semicolons(text, true)),
+        },
+        Pattern {
+            id: "overloaded-asides",
+            name: "Too many asides in one sentence",
+            weight: 8,
+            finder: Box::new(find_overloaded_sentences),
         },
     ]
 }

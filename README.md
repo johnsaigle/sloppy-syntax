@@ -91,7 +91,7 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `invisible-infrastructure` | "Invisible infrastructure" | 2 |
 | `bottom-line-heading` | "The Bottom Line" heading | 2 |
 | `em-dash-asides` | Repeated em-dash asides | 1 |
-| `unicode-typography` | Polished Unicode punctuation | 1 |
+| `unicode-typography` | Polished Unicode punctuation and logical symbols | 1 |
 | `alliteration` | Three or more nearby words with the same initial | 1 |
 | `multiple-alliteration` | Multiple alliterative groups in one sentence | 4 |
 | `sentence-final-obviously` | Sentence-final "obviously" | 1 |
@@ -111,6 +111,7 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `ai-leftovers` | Chatbot leftovers | 3 |
 | `semicolon-in-sentence` | Semicolon in a sentence | 2 |
 | `semicolon-and-emdash` | Semicolon + em-dash in sentence | 3 |
+| `overloaded-asides` | Too many asides in one sentence | 8 |
 
 ## Library usage
 
