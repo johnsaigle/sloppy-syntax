@@ -832,6 +832,30 @@ fn build_additional_patterns() -> Vec<Pattern> {
             )),
         },
         Pattern {
+            id: "narrower-claim",
+            name: "\"Narrower than that\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bnarrower\b[^.!?\n]{0,60}?\bthan\b(?:\s+(?:that|this|it|these|those))?[^.!?\n]{0,40}",
+            )),
+        },
+        Pattern {
+            id: "worth-unpacking",
+            name: "\"Worth unpacking\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bworth\s+unpacking\b",
+            )),
+        },
+        Pattern {
+            id: "byte-identical",
+            name: "\"Byte-identical\"",
+            weight: 2,
+            finder: Box::new(make_fancy_regex_finder(
+                r"(?i)(?<![a-z-])byte[- ]identical\b",
+            )),
+        },
+        Pattern {
             id: "not-just",
             name: "Not just X, but Y",
             weight: 2,

@@ -96,6 +96,9 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `multiple-alliteration` | Multiple alliterative groups in one sentence | 4 |
 | `sentence-final-obviously` | Sentence-final "obviously" | 1 |
 | `real-burden` | "Real operational burden" | 1 |
+| `narrower-claim` | "Narrower than that" | 2 |
+| `worth-unpacking` | "Worth unpacking" | 2 |
+| `byte-identical` | "Byte-identical" | 2 |
 | `bold-emphasis` | Markdown bold emphasis | 1 |
 | `stock-ai-role` | "AI assistant" / "pair programmer" | 1 |
 | `ai-vocab` | AI vocabulary words | 1 |

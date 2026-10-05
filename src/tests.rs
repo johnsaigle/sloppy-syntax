@@ -431,6 +431,54 @@ fn test_wikipedia_language_pattern_negative_cases() {
 }
 
 #[test]
+fn test_narrower_claim() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "narrower-claim");
+
+    assert_eq!(
+        (p.finder)("What I am claiming is narrower than that, though.").len(),
+        1
+    );
+    assert_eq!(
+        (p.finder)("My point is narrower than the one being attributed.").len(),
+        1
+    );
+    assert!(((p.finder)("The claim is broader than expected.").is_empty()));
+    assert!(((p.finder)("Nothing narrower here.").is_empty()));
+}
+
+#[test]
+fn test_worth_unpacking() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "worth-unpacking");
+
+    assert_eq!(
+        (p.finder)("That distinction is worth unpacking.").len(),
+        1
+    );
+    assert_eq!(
+        (p.finder)("The detail is worth unpacking here.").len(),
+        1
+    );
+    assert_eq!(
+        ((p.finder)("Not worth unpacking further after all.").len()),
+        1
+    );
+    assert!(((p.finder)("Worth the unpacking, nonetheless.").is_empty()));
+}
+
+#[test]
+fn test_byte_identical() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "byte-identical");
+
+    assert_eq!(((p.finder)("The output is byte-identical to the input.").len()), 1);
+    assert_eq!(((p.finder)("byte identical results both times").len()), 1);
+    assert!(((p.finder)("byte-by-byte identical, but separate.").is_empty()));
+    assert!(((p.finder)("identical to the byte, precisely.").is_empty()));
+}
+
+#[test]
 fn test_semicolon_in_sentence() {
     let patterns = build_patterns();
     let semi = find_pattern(&patterns, "semicolon-in-sentence");
