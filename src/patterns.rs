@@ -597,6 +597,145 @@ fn make_alliteration_finder(multiple: bool) -> impl Fn(&str) -> Vec<RawMatch> {
     }
 }
 
+fn make_question_chain_finder() -> impl Fn(&str) -> Vec<RawMatch> {
+    let chain =
+        Regex::new(r"[^.!?\n]+\?(?:\s+[^.!?\n]+\?)+").expect("invalid question chain regex");
+
+    move |text: &str| {
+        chain
+            .find_iter(text)
+            .filter_map(|m| {
+                let count = m.as_str().matches('?').count();
+                if count < 2 {
+                    return None;
+                }
+                let mut start = m.start();
+                while start < m.end() && text.as_bytes()[start].is_ascii_whitespace() {
+                    start += 1;
+                }
+                Some(RawMatch {
+                    start,
+                    end: m.end(),
+                    count: Some(count),
+                    badge: Some(count.to_string()),
+                    badge_title: Some(format!("{count} questions in a row")),
+                })
+            })
+            .collect()
+    }
+}
+
+const ANAPHORA_SKIP: [&str; 29] = [
+    "i", "it", "the", "a", "an", "this", "that", "we", "you", "they", "he", "she", "there", "but",
+    "and", "so", "in", "as", "if", "my", "his", "her", "their", "its", "these", "those", "for",
+    "at", "of",
+];
+
+fn make_anaphora_finder() -> impl Fn(&str) -> Vec<RawMatch> {
+    let sentence_re = Regex::new(r"[^.!?\n]+[.!?]").expect("invalid anaphora sentence regex");
+    let word_re = Regex::new(r"[A-Za-z'\u{2019}-]+").expect("invalid anaphora word regex");
+
+    move |text: &str| {
+        let sentences: Vec<(usize, usize, String)> = sentence_re
+            .find_iter(text)
+            .filter_map(|m| {
+                let word = word_re.find(m.as_str())?;
+                Some((
+                    m.start() + word.start(),
+                    m.end(),
+                    word.as_str().to_lowercase(),
+                ))
+            })
+            .collect();
+
+        let mut found = Vec::new();
+        let mut i = 0;
+        while i < sentences.len() {
+            let mut j = i;
+            while j + 1 < sentences.len()
+                && sentences[j + 1].2 == sentences[i].2
+                && sentences[j + 1].0 - sentences[j].1 < 4
+            {
+                j += 1;
+            }
+            let run = j - i + 1;
+            if run >= 3 && !ANAPHORA_SKIP.contains(&sentences[i].2.as_str()) {
+                let head = &sentences[i].2;
+                found.push(RawMatch {
+                    start: sentences[i].0,
+                    end: sentences[j].1,
+                    count: Some(run),
+                    badge: Some(run.to_string()),
+                    badge_title: Some(format!("{run} sentences opening \u{201c}{head}\u{201d}")),
+                });
+                i = j + 1;
+            } else {
+                i += 1;
+            }
+        }
+        found
+    }
+}
+
+fn make_echo_finder() -> impl Fn(&str) -> Vec<RawMatch> {
+    let sentence_re = Regex::new(r"[^.!?\n]+[.!?]?").expect("invalid echo sentence regex");
+    let word_re = Regex::new(r"[a-z0-9'\u{2019}-]+").expect("invalid echo word regex");
+
+    move |text: &str| {
+        let sentences: Vec<(usize, usize, String)> = sentence_re
+            .find_iter(text)
+            .filter(|m| m.as_str().split_whitespace().count() >= 4)
+            .map(|m| (m.start(), m.end(), m.as_str().to_lowercase()))
+            .collect();
+
+        let grams = |sentence: &str| -> BTreeSet<String> {
+            let words: Vec<_> = word_re.find_iter(sentence).map(|m| m.as_str()).collect();
+            let mut out = BTreeSet::new();
+            for i in 0..words.len().saturating_sub(3) {
+                out.insert(words[i..i + 4].join(" "));
+            }
+            out
+        };
+
+        let mut found = Vec::new();
+        let mut i = 0;
+        while i < sentences.len() {
+            let mut j = i;
+            let mut shared = String::new();
+            while j + 1 < sentences.len() {
+                if sentences[j + 1].0 - sentences[j].1 > 3 {
+                    break;
+                }
+                let a = grams(&sentences[j].2);
+                let b = grams(&sentences[j + 1].2);
+                let Some(gram) = a.intersection(&b).max_by_key(|gram| gram.len()) else {
+                    break;
+                };
+                shared.clone_from(gram);
+                j += 1;
+            }
+            let run = j - i + 1;
+            if run >= 2 {
+                let mut end = sentences[j].1;
+                while end > sentences[i].0 && text.as_bytes()[end - 1].is_ascii_whitespace() {
+                    end -= 1;
+                }
+                found.push(RawMatch {
+                    start: sentences[i].0,
+                    end,
+                    count: Some(run),
+                    badge: Some(run.to_string()),
+                    badge_title: Some(format!("{run} sentences echoing \u{201c}{shared}\u{201d}")),
+                });
+                i = j + 1;
+            } else {
+                i += 1;
+            }
+        }
+        found
+    }
+}
+
 #[must_use]
 pub fn build_patterns() -> Vec<Pattern> {
     let mut patterns = build_original_patterns();
@@ -729,10 +868,10 @@ fn build_additional_patterns() -> Vec<Pattern> {
         },
         Pattern {
             id: "meta-commentary",
-            name: "\"Here's the interesting part\"",
+            name: "\"Here's the twist\"",
             weight: 2,
-            finder: Box::new(make_regex_finder(
-                r"(?i)\b(?:so\s+)?here['\u{2019}]s\s+(?:the\s+)?(?:question|interesting\s+part|thing|catch|kicker|rub)\b",
+            finder: Box::new(make_fancy_regex_finder(
+                r"(?i)\bhere(?:['\u{2019}]s|\s+is)\s+(?:the|a|my|one)\s+(?:twist|thing|catch|kicker|rub|problem|first|second|third|next|recent|real|best|worst|surprising|interesting|key|important)\b[\w\s-]{0,20}[:.]",
             )),
         },
         Pattern {
@@ -843,16 +982,14 @@ fn build_additional_patterns() -> Vec<Pattern> {
             id: "worth-unpacking",
             name: "\"Worth unpacking\"",
             weight: 2,
-            finder: Box::new(make_regex_finder(
-                r"(?i)\bworth\s+unpacking\b",
-            )),
+            finder: Box::new(make_regex_finder(r"(?i)\bworth\s+unpacking\b")),
         },
         Pattern {
             id: "byte-identical",
-            name: "\"Byte-identical\"",
+            name: "\"Byte-identical\" / \"bit-exact\"",
             weight: 2,
             finder: Box::new(make_fancy_regex_finder(
-                r"(?i)(?<![a-z-])byte[- ]identical\b",
+                r"(?i)(?<![a-z-])(?:byte[- ]identical|byte[- ]for[- ]byte|bit[- ]exact|bit[- ]for[- ]bit|bitwise[- ]identical)\b",
             )),
         },
         Pattern {
@@ -952,6 +1089,120 @@ fn build_additional_patterns() -> Vec<Pattern> {
             name: "Too many asides in one sentence",
             weight: 8,
             finder: Box::new(find_overloaded_sentences),
+        },
+        Pattern {
+            id: "is-the-whole",
+            name: "\"Is the whole …\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)(?:\b(?:is|was|are|were)|['\u{2019}]s)\s+the\s+whole\b(?:\s+\w+)?|\bhere(?:['\u{2019}]s|\s+is)\s+the\s+whole\b(?:\s+\w+)?",
+            )),
+        },
+        Pattern {
+            id: "performative-honesty",
+            name: "Performative honesty",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bI\s+(?:will\s+not|won['\u{2019}]t)\s+pretend\b|\b(?:I['\u{2019}]ll|let['\u{2019}]s|to)\s+be\s+(?:honest|clear|blunt|real)\b|(?:^|[.!?\u{2013}\u{2014}]\s+|\n)(?:Honestly|Look|Truthfully|Frankly)\s*,",
+            )),
+        },
+        Pattern {
+            id: "thats-the-part",
+            name: "\"That's the part …\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:that|this|it)(?:['\u{2019}]s|\s+(?:is|was))\s+the\s+part\b|\bthe\s+part\s+that\s+(?:makes|made|gets|got|keeps|kept)\s+(?:me|you|us|it)\b|\bmy\s+favou?rite\s+part\s+of\b",
+            )),
+        },
+        Pattern {
+            id: "the-only-i-trust",
+            name: "\"The only X I trust\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\bthe\s+only\s+[\w'\u{2019}-]+(?:\s+[\w'\u{2019}-]+){0,2}?\s+(?:I|you|we|it|he|she|they)\s+(?:trust|need|needs|care|want|wants|use|uses|believe)\b|\bthe\s+only\s+[\w'\u{2019}-]+\s+that\s+(?:matters|counts|works|survives)\b",
+            )),
+        },
+        Pattern {
+            id: "take-my-word",
+            name: "\"Don't take my word for it\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:you\s+)?(?:do\s+not|don['\u{2019}]t)\s+(?:have\s+to\s+)?take\s+my\s+word\s+for\s+(?:it|any\s+of\s+(?:it|this|that))\b",
+            )),
+        },
+        Pattern {
+            id: "turns-out",
+            name: "\"Turns out …\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)(?:^|[.!?\u{2013}\u{2014}]\s+|\n)Turns\s+out\b|\bit\s+turns\s+out\s+that\b",
+            )),
+        },
+        Pattern {
+            id: "fits-in-your-head",
+            name: "\"Fits in your head\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:hold|fit|fits|holds|held)\s+(?:it\s+)?in\s+your\s+head\b|\bbatteries[-\s]included\b|\bit\s+just\s+works\b|\bzero[-\s]config(?:uration)?\b|\bsane\s+defaults\b",
+            )),
+        },
+        Pattern {
+            id: "colon-triple",
+            name: "Colon into a triple",
+            weight: 2,
+            finder: Box::new(make_fancy_regex_finder(
+                r"(?i):\s+[^.!?;:\n]{2,40},\s+[^.!?;:\n]{2,40},\s+(?:and\s+|or\s+)?[^.!?;:\n]{2,40}(?=[.!?\n])",
+            )),
+        },
+        Pattern {
+            id: "x-is-dead",
+            name: "\"X is dead\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b[\w\s]{3,30}\s+(?:is|are)\s+dead\b|\blong\s+live\s+\w+",
+            )),
+        },
+        Pattern {
+            id: "thats-why-mattered",
+            name: "\"That's why X mattered\"",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)\b(?:that|this)(?:['\u{2019}]s|\s+(?:is|was))\s+why\b[^.!?\n]{0,80}?\b(?:matter(?:s|ed)?|count(?:s|ed)?)\b",
+            )),
+        },
+        Pattern {
+            id: "stranded-auxiliary",
+            name: "Stranded auxiliary contrast",
+            weight: 2,
+            finder: Box::new(make_regex_finder(
+                r"(?i)[;:,]\s+[^.;:!?\n]{2,50}\s(?:did|does|do|was|were|is|are|has|have|had|can|could|would|will)(?:n['\u{2019}]t)?\s*[.;]|\b(?:Maybe|Perhaps)\s+\w+[^.!?\n]{0,40}\s(?:would|could|might|should|did|had|was|is)(?:n['\u{2019}]t)?\s+(?:have\s*)?\.",
+            )),
+        },
+        Pattern {
+            id: "not-but",
+            name: "\"Not X, but Y\"",
+            weight: 2,
+            finder: Box::new(make_fancy_regex_finder(
+                r"(?i)\bnot\s+(?!(?:just|only|merely|simply)\b)[^.!?\n;]{1,100}?\bbut\b|\b(?:isn['\u{2019}]t|is not)\s+[^.!?\n]{1,80}[.!?]\s*(?:it['\u{2019}]s|it is|this['\u{2019}]s|this is|that['\u{2019}]s|that is)\b",
+            )),
+        },
+        Pattern {
+            id: "stacked-questions",
+            name: "Stacked rhetorical questions",
+            weight: 2,
+            finder: Box::new(make_question_chain_finder()),
+        },
+        Pattern {
+            id: "sentence-anaphora",
+            name: "Repeated sentence openers",
+            weight: 3,
+            finder: Box::new(make_anaphora_finder()),
+        },
+        Pattern {
+            id: "echo-triad",
+            name: "Echoing sentence runs",
+            weight: 3,
+            finder: Box::new(make_echo_finder()),
         },
     ]
 }

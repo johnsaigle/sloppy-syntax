@@ -42,9 +42,7 @@ fn display(output: &sloppy_syntax::analysis::Output) {
     println!("Score: {}/5", output.score);
     println!(
         "Found {} match(es) across {} sentence(s) in {} characters.",
-        output.stats.total_matches,
-        output.stats.flagged_sentences,
-        output.text_length,
+        output.stats.total_matches, output.stats.flagged_sentences, output.text_length,
     );
 
     if output.stats.chain_items > 0 {
@@ -70,12 +68,12 @@ fn display(output: &sloppy_syntax::analysis::Output) {
             .as_deref()
             .map(|b| format!(" [{b}]"))
             .unwrap_or_default();
-        let chain = m
-            .count
-            .map(|c| format!(" ({c} items)"))
-            .unwrap_or_default();
+        let chain = m.count.map(|c| format!(" ({c} items)")).unwrap_or_default();
         println!();
-        println!("  {} @ char {}-{}{}{}", m.pattern_name, m.start, m.end, badge, chain);
+        println!(
+            "  {} @ char {}-{}{}{}",
+            m.pattern_name, m.start, m.end, badge, chain
+        );
         for line in m.sentence.lines() {
             println!("  > {line}");
         }

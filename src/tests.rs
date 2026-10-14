@@ -452,14 +452,8 @@ fn test_worth_unpacking() {
     let patterns = build_patterns();
     let p = find_pattern(&patterns, "worth-unpacking");
 
-    assert_eq!(
-        (p.finder)("That distinction is worth unpacking.").len(),
-        1
-    );
-    assert_eq!(
-        (p.finder)("The detail is worth unpacking here.").len(),
-        1
-    );
+    assert_eq!((p.finder)("That distinction is worth unpacking.").len(), 1);
+    assert_eq!((p.finder)("The detail is worth unpacking here.").len(), 1);
     assert_eq!(
         ((p.finder)("Not worth unpacking further after all.").len()),
         1
@@ -472,7 +466,10 @@ fn test_byte_identical() {
     let patterns = build_patterns();
     let p = find_pattern(&patterns, "byte-identical");
 
-    assert_eq!(((p.finder)("The output is byte-identical to the input.").len()), 1);
+    assert_eq!(
+        ((p.finder)("The output is byte-identical to the input.").len()),
+        1
+    );
     assert_eq!(((p.finder)("byte identical results both times").len()), 1);
     assert!(((p.finder)("byte-by-byte identical, but separate.").is_empty()));
     assert!(((p.finder)("identical to the byte, precisely.").is_empty()));
@@ -602,4 +599,223 @@ fn test_score_is_one_to_five() {
     let heavy = "No switching. No routing. It's not a wrapper — it's a revolution. So here's the interesting part. The math is simple. Nothing here is specific to those models. Testnet first, obviously.";
     let (matches, _) = collect_matches(heavy, &all, &patterns);
     assert!(slop_score(heavy, &matches) >= 4);
+}
+
+#[test]
+fn test_byte_identical_variants() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "byte-identical");
+
+    assert_eq!(
+        ((p.finder)("The output is bit-exact to the reference.").len()),
+        1
+    );
+    assert_eq!(((p.finder)("The outputs match byte-for-byte.").len()), 1);
+    assert_eq!(
+        ((p.finder)("A bit-for-bit reproduction of the build.").len()),
+        1
+    );
+    assert_eq!(((p.finder)("bitwise identical, every run").len()), 1);
+    assert!(((p.finder)("byte-by-byte identical, but separate.").is_empty()));
+    assert!(((p.finder)("grabitexact and bitwise-identically shaped").is_empty()));
+}
+
+#[test]
+fn test_is_the_whole() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "is-the-whole");
+
+    assert_eq!((p.finder)("Consistency is the whole game.").len(), 1);
+    assert_eq!((p.finder)("Here's the whole secret.").len(), 1);
+    assert!((p.finder)("The whole team was there.").is_empty());
+}
+
+#[test]
+fn test_performative_honesty() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "performative-honesty");
+
+    assert_eq!(
+        (p.finder)("I won't pretend the rollout was smooth.").len(),
+        1
+    );
+    assert_eq!((p.finder)("Let's be honest about the numbers.").len(), 1);
+    assert_eq!((p.finder)("Honestly, it was fine.").len(), 1);
+    assert!((p.finder)("He was honest about the delay.").is_empty());
+}
+
+#[test]
+fn test_thats_the_part() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "thats-the-part");
+
+    assert_eq!(
+        (p.finder)("That's the part a counter can't reach.").len(),
+        1
+    );
+    assert_eq!(
+        (p.finder)("The part that makes me trust the rest.").len(),
+        1
+    );
+    assert!((p.finder)("The part arrived yesterday.").is_empty());
+}
+
+#[test]
+fn test_the_only_i_trust() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "the-only-i-trust");
+
+    assert_eq!((p.finder)("It's the only estimate I trust.").len(), 1);
+    assert_eq!(
+        (p.finder)("The only thing that matters is shipping.").len(),
+        1
+    );
+    assert!((p.finder)("The only option is to restart.").is_empty());
+}
+
+#[test]
+fn test_take_my_word() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "take-my-word");
+
+    assert_eq!(
+        (p.finder)("You don't have to take my word for it.").len(),
+        1
+    );
+    assert_eq!((p.finder)("Don't take my word for any of this.").len(), 1);
+    assert!((p.finder)("Take my word for it.").is_empty());
+}
+
+#[test]
+fn test_turns_out() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "turns-out");
+
+    assert_eq!(
+        (p.finder)("It turns out that nobody reads the changelog.").len(),
+        1
+    );
+    assert_eq!((p.finder)("Turns out the importer was fine.").len(), 1);
+    assert!((p.finder)("The road turns out toward the coast.").is_empty());
+}
+
+#[test]
+fn test_fits_in_your_head() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "fits-in-your-head");
+
+    assert_eq!(
+        (p.finder)("The small core still fits in your head.").len(),
+        1
+    );
+    assert_eq!((p.finder)("It just works.").len(), 1);
+    assert_eq!((p.finder)("Zero config, sane defaults.").len(), 2);
+    assert!((p.finder)("Hold the door in your head.").is_empty());
+}
+
+#[test]
+fn test_colon_triple() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "colon-triple");
+
+    assert_eq!(
+        (p.finder)(
+            "The launch needed three things: a blog post, a demo video, and a pricing page."
+        )
+        .len(),
+        1
+    );
+    assert!((p.finder)("The settings: ports and processes.").is_empty());
+}
+
+#[test]
+fn test_x_is_dead() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "x-is-dead");
+
+    assert_eq!((p.finder)("Peer code review is dead.").len(), 1);
+    assert_eq!((p.finder)("Long live botd.").len(), 1);
+    assert!((p.finder)("The dead letter queue is full.").is_empty());
+}
+
+#[test]
+fn test_thats_why_mattered() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "thats-why-mattered");
+
+    assert_eq!(
+        (p.finder)("That's why the export button mattered.").len(),
+        1
+    );
+    assert!((p.finder)("That is why the button exists.").is_empty());
+}
+
+#[test]
+fn test_stranded_auxiliary() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "stranded-auxiliary");
+
+    assert_eq!((p.finder)("The tool died; the data didn't.").len(), 1);
+    assert_eq!((p.finder)("Maybe it wouldn't have.").len(), 1);
+    assert!((p.finder)("The tool died; the data survived.").is_empty());
+}
+
+#[test]
+fn test_not_but() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "not-but");
+
+    assert_eq!(
+        (p.finder)("The empty state isn't filler. It's orientation.").len(),
+        1
+    );
+    assert_eq!((p.finder)("not a wrapper, but a runtime").len(), 1);
+    assert!((p.finder)("not just a wrapper, but a runtime").is_empty());
+}
+
+#[test]
+fn test_stacked_questions() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "stacked-questions");
+
+    let found = (p.finder)("Do I know how it works? Where it breaks?");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(2));
+
+    assert!((p.finder)("How does it work? Nobody knows.").is_empty());
+}
+
+#[test]
+fn test_sentence_anaphora() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "sentence-anaphora");
+
+    let found = (p.finder)(
+        "Maybe nobody needed the importer. Maybe the shortcut confused people. Maybe the redesign was overdue.",
+    );
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(3));
+
+    assert!((p.finder)("The importer was fine. The shortcut confused people.").is_empty());
+    assert!(
+        (p.finder)("It worked. It failed. It worked again.").is_empty(),
+        "pronoun openers are skipped"
+    );
+}
+
+#[test]
+fn test_echo_triad() {
+    let patterns = build_patterns();
+    let p = find_pattern(&patterns, "echo-triad");
+
+    let found = (p.finder)(
+        "A shopping cart is an object in the system. A chat room is an object in the system.",
+    );
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].count, Some(2));
+
+    assert!(
+        (p.finder)("A shopping cart holds items. A chat room holds messages.").is_empty(),
+        "sentences without a shared 4-gram do not echo"
+    );
 }

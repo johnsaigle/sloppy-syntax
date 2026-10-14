@@ -85,7 +85,7 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `punchline` | "The punchline is" | 2 |
 | `worth-naming` | "Worth naming" | 2 |
 | `not-nothing` | "That's not nothing" | 2 |
-| `meta-commentary` | "Here's the interesting part" | 2 |
+| `meta-commentary` | "Here's the twist" | 2 |
 | `math-is-simple` | "The math is simple" | 2 |
 | `maintenance-love` | "Maintenance love" | 2 |
 | `invisible-infrastructure` | "Invisible infrastructure" | 2 |
@@ -98,7 +98,7 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `real-burden` | "Real operational burden" | 1 |
 | `narrower-claim` | "Narrower than that" | 2 |
 | `worth-unpacking` | "Worth unpacking" | 2 |
-| `byte-identical` | "Byte-identical" | 2 |
+| `byte-identical` | "Byte-identical" / "bit-exact" | 2 |
 | `bold-emphasis` | Markdown bold emphasis | 1 |
 | `stock-ai-role` | "AI assistant" / "pair programmer" | 1 |
 | `ai-vocab` | AI vocabulary words | 1 |
@@ -115,6 +115,21 @@ The score is a density metric: weighted pattern hits per 50 words.
 | `semicolon-in-sentence` | Semicolon in a sentence | 2 |
 | `semicolon-and-emdash` | Semicolon + em-dash in sentence | 3 |
 | `overloaded-asides` | Too many asides in one sentence | 8 |
+| `is-the-whole` | "Is the whole …" | 2 |
+| `performative-honesty` | Performative honesty ("I won't pretend", "Let's be honest") | 2 |
+| `thats-the-part` | "That's the part …" | 2 |
+| `the-only-i-trust` | "The only X I trust" | 2 |
+| `take-my-word` | "Don't take my word for it" | 2 |
+| `turns-out` | "Turns out …" | 2 |
+| `fits-in-your-head` | "Fits in your head" / "it just works" / "zero config" | 2 |
+| `colon-triple` | Colon into a triple | 2 |
+| `x-is-dead` | "X is dead" / "long live X" | 2 |
+| `thats-why-mattered` | "That's why X mattered" | 2 |
+| `stranded-auxiliary` | Stranded auxiliary contrast ("The tool died; the data didn't.") | 2 |
+| `not-but` | "Not X, but Y" | 2 |
+| `stacked-questions` | Stacked rhetorical questions | 2 |
+| `sentence-anaphora` | Repeated sentence openers | 3 |
+| `echo-triad` | Echoing sentence runs | 3 |
 
 ## Library usage
 
