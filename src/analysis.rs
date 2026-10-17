@@ -2,7 +2,16 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde::Serialize;
 
-use crate::patterns::{Pattern, RawMatch};
+use crate::patterns::{Pattern, RawMatch, in_url_span, url_spans};
+
+/// Patterns whose matches inside URLs are the point: they detect URL and
+/// citation artifacts. Every other pattern ignores text inside URLs so that
+/// hosts, paths, and query strings are not read as prose.
+const URL_AWARE_PATTERNS: [&str; 1] = ["ai-leftovers"];
+
+/// Pattern ids whose `count` is a chain length ("No X, no Y" and friends).
+/// Other count badges are cluster or sentence-run sizes, not chain items.
+const CHAIN_PATTERN_IDS: [&str; 3] = ["no-chain", "no-sentence-chain", "did-not-chain"];
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MatchResult {
@@ -49,7 +58,11 @@ pub fn analyze(text: &str, patterns: &[Pattern], disabled: &[String]) -> Output 
 
     let (matches, per_pattern) = collect_matches(text, &enabled, patterns);
     let regions = build_regions(text, &matches);
-    let chain_items = matches.iter().filter_map(|m| m.count).sum();
+    let chain_items = matches
+        .iter()
+        .filter(|m| CHAIN_PATTERN_IDS.contains(&m.pattern.as_str()))
+        .filter_map(|m| m.count)
+        .sum();
     let score = slop_score(text, &matches);
     let mut patterns_enabled: Vec<_> = enabled.iter().copied().map(String::from).collect();
     patterns_enabled.sort();
@@ -63,7 +76,7 @@ pub fn analyze(text: &str, patterns: &[Pattern], disabled: &[String]) -> Output 
             chain_items,
             per_pattern,
         },
-        text_length: text.len(),
+        text_length: text.chars().count(),
         matches,
     }
 }
@@ -113,12 +126,17 @@ pub(crate) fn collect_matches(
     patterns: &[Pattern],
 ) -> (Vec<MatchResult>, BTreeMap<String, usize>) {
     let mut raw_matches: Vec<(usize, usize, RawMatch, &str, &str, u8)> = Vec::new();
+    let url_spans = url_spans(text);
 
     for p in patterns {
         if !enabled.contains(p.id) {
             continue;
         }
+        let url_aware = URL_AWARE_PATTERNS.contains(&p.id);
         for m in (p.finder)(text) {
+            if !url_aware && in_url_span(&url_spans, m.start, m.end) {
+                continue;
+            }
             raw_matches.push((m.start, m.end, m, p.id, p.name, p.weight));
         }
     }
@@ -167,6 +185,8 @@ pub(crate) fn slop_score(text: &str, matches: &[MatchResult]) -> u8 {
         return 1;
     }
 
+    // Weighted hits per 100 words, banded per the README score table:
+    // 1–4 -> 2, 5–9 -> 3, 10–19 -> 4, 20+ -> 5.
     match weighted_hits * 100 / words {
         0..=4 => 2,
         5..=9 => 3,

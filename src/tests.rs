@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::analysis::{collect_matches, sentence_bounds, slop_score};
+use crate::analysis::{MatchResult, analyze, collect_matches, sentence_bounds, slop_score};
 use crate::patterns::{Pattern, build_patterns};
 
 const EXAMPLE: &str = "We rebuilt the editor from the ground up. No sign-ups, no downloads, no hassle \u{2014} just paste your text and start writing. Everything runs locally in your browser.
@@ -734,6 +734,7 @@ fn test_x_is_dead() {
     let p = find_pattern(&patterns, "x-is-dead");
 
     assert_eq!((p.finder)("Peer code review is dead.").len(), 1);
+    assert_eq!((p.finder)("AI is dead.").len(), 1);
     assert_eq!((p.finder)("Long live botd.").len(), 1);
     assert!((p.finder)("The dead letter queue is full.").is_empty());
 }
@@ -818,4 +819,101 @@ fn test_echo_triad() {
         (p.finder)("A shopping cart holds items. A chat room holds messages.").is_empty(),
         "sentences without a shared 4-gram do not echo"
     );
+}
+
+#[test]
+fn test_urls_are_not_flagged_as_prose() {
+    let patterns = build_patterns();
+    let all: HashSet<&str> = patterns.iter().map(|p| p.id).collect();
+
+    let cases = [
+        // utm parameters used to trip ai-leftovers.
+        "Track conversions with https://example.com/landing?utm_source=newsletter&utm_medium=email.",
+        // Comma-separated path segments used to trip no-chain.
+        "Block https://cdn.example.com/no-transform,no-cache in the CDN config.",
+        // URL path words used to trip ai-vocab and alliteration.
+        "Read https://blog.example.com/delving-into-rust for the deep dive.",
+        "Docs: https://docs.example.com/ever-evolving-notes today.",
+        // Repeated URL sentences used to trip sentence-anaphora.
+        "https://localhost:8080 is up. https://localhost:9090 is up. https://localhost:7070 is up.",
+        // A host token used to trip x-is-dead ("com is dead").
+        "https://ai.example.com is dead.",
+    ];
+
+    for text in cases {
+        let (matches, _) = collect_matches(text, &all, &patterns);
+        assert!(matches.is_empty(), "URL text unexpectedly flagged: {matches:?}");
+    }
+}
+
+#[test]
+fn test_slop_next_to_urls_still_flagged() {
+    let patterns = build_patterns();
+    let all: HashSet<&str> = patterns.iter().map(|p| p.id).collect();
+
+    let text = "Sit with that for a moment. Docs: https://docs.example.com/ever-evolving-notes today.";
+    let (matches, _) = collect_matches(text, &all, &patterns);
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].pattern, "sit-with");
+}
+
+#[test]
+fn test_ai_leftovers_still_flagged_inside_urls() {
+    let patterns = build_patterns();
+    let all: HashSet<&str> = patterns.iter().map(|p| p.id).collect();
+
+    let text = "Source: https://trace.example.com/turn0search5 for the citation.";
+    let (matches, _) = collect_matches(text, &all, &patterns);
+    assert!(matches.iter().any(|m| m.pattern == "ai-leftovers"));
+}
+
+#[test]
+fn test_score_density_bands_per_100_words() {
+    let text = "word ".repeat(100);
+    let hits = |n: usize| {
+        (0..n)
+            .map(|_| MatchResult {
+                pattern: "test".into(),
+                pattern_name: "test".into(),
+                weight: 1,
+                start: 0,
+                end: 0,
+                text: String::new(),
+                count: None,
+                badge: None,
+                badge_title: None,
+                sentence: String::new(),
+            })
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(slop_score(&text, &hits(1)), 2);
+    assert_eq!(slop_score(&text, &hits(4)), 2);
+    assert_eq!(slop_score(&text, &hits(5)), 3);
+    assert_eq!(slop_score(&text, &hits(9)), 3);
+    assert_eq!(slop_score(&text, &hits(10)), 4);
+    assert_eq!(slop_score(&text, &hits(19)), 4);
+    assert_eq!(slop_score(&text, &hits(20)), 5);
+}
+
+#[test]
+fn test_chain_items_count_chain_patterns_only() {
+    let patterns = build_patterns();
+    let text = "Clear, concise, compelling communication matters. No fluff, no filler.";
+    let output = analyze(text, &patterns, &[]);
+
+    let no_chain = output
+        .matches
+        .iter()
+        .find(|m| m.pattern == "no-chain")
+        .expect("no-chain should match");
+    assert_eq!(no_chain.count, Some(2));
+    assert_eq!(output.stats.chain_items, 2);
+}
+
+#[test]
+fn test_text_length_counts_characters() {
+    let patterns = build_patterns();
+    let output = analyze("café", &patterns, &[]);
+    assert_eq!(output.text_length, 4);
 }

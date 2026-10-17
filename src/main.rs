@@ -10,9 +10,11 @@ fn main() -> io::Result<()> {
     let patterns = build_patterns();
 
     if args.list_patterns {
+        let width = patterns.iter().map(|p| p.id.len()).max().unwrap_or(0);
         println!("Available patterns:");
         for p in &patterns {
-            println!("  {:16} {}", p.id, p.name);
+            let id = p.id;
+            println!("  {id:width$} {}", p.name);
         }
         return Ok(());
     }

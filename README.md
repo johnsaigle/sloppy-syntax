@@ -56,7 +56,7 @@ The tool outputs JSON with this structure:
 
 ## Score interpretation
 
-The score is a density metric: weighted pattern hits per 50 words.
+The score is a density metric: weighted pattern hits per 100 words.
 
 | Score | Density range | Meaning |
 |---|---|---|

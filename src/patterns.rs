@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::LazyLock;
 
 use fancy_regex::Regex as FancyRegex;
 use regex::Regex;
@@ -19,6 +20,56 @@ pub struct RawMatch {
     pub count: Option<usize>,
     pub badge: Option<String>,
     pub badge_title: Option<String>,
+}
+
+/// Byte ranges of URLs (`scheme://…` or `www.` host) in `text`.
+///
+/// Used to keep URL contents (hosts, paths, query strings) out of matches for
+/// prose patterns. Trailing punctuation is trimmed so sentence terminators
+/// after a link stay visible to sentence splitting.
+pub(crate) fn url_spans(text: &str) -> Vec<(usize, usize)> {
+    static URL_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i)\b(?:[a-z][a-z0-9+.-]*://\S+|www\.\S+)")
+            .expect("invalid URL detection regex")
+    });
+    URL_RE
+        .find_iter(text)
+        .map(|m| {
+            let mut end = m.end();
+            while end > m.start() {
+                let Some(ch) = text[..end].chars().next_back() else {
+                    break;
+                };
+                if !matches!(
+                    ch,
+                    '.' | ','
+                        | ';'
+                        | ':'
+                        | '!'
+                        | '?'
+                        | '…'
+                        | ')'
+                        | ']'
+                        | '}'
+                        | '"'
+                        | '\''
+                        | '’'
+                        | '”'
+                ) {
+                    break;
+                }
+                end -= ch.len_utf8();
+            }
+            (m.start(), end)
+        })
+        .collect()
+}
+
+/// Whether the byte range `start..end` overlaps any span in `spans`.
+pub(crate) fn in_url_span(spans: &[(usize, usize)], start: usize, end: usize) -> bool {
+    spans
+        .iter()
+        .any(|&(span_start, span_end)| start < span_end && span_start < end)
 }
 
 const CHAIN_BODY: &str = r"[^,.;:!?\n\u{2013}\u{2014}\u{2026}]*";
@@ -453,17 +504,23 @@ fn alliteration_clusters(
     sentence: &str,
     sentence_start: usize,
     words: &Regex,
+    url_spans: &[(usize, usize)],
 ) -> Vec<AlliterationCluster> {
     let tokens: Vec<_> = words
         .find_iter(sentence)
         .filter_map(|m| {
+            let start = sentence_start + m.start();
+            let end = sentence_start + m.end();
+            if in_url_span(url_spans, start, end) {
+                return None;
+            }
             let word = m.as_str().to_lowercase();
             if is_function_word(&word) {
                 return None;
             }
             Some(AlliterationToken {
-                start: sentence_start + m.start(),
-                end: sentence_start + m.end(),
+                start,
+                end,
                 onset: word.chars().next()?,
                 word,
             })
@@ -525,6 +582,7 @@ fn make_alliteration_finder(multiple: bool) -> impl Fn(&str) -> Vec<RawMatch> {
         Regex::new(r"(?u)\p{L}[\p{L}\p{M}'\u{2019}-]*").expect("invalid alliteration word regex");
 
     move |text: &str| {
+        let url_spans = url_spans(text);
         let mut found = Vec::new();
         let mut sentence_start = 0;
         for sentence_end in text
@@ -537,8 +595,12 @@ fn make_alliteration_finder(multiple: bool) -> impl Fn(&str) -> Vec<RawMatch> {
             if sentence_end <= sentence_start {
                 continue;
             }
-            let clusters =
-                alliteration_clusters(&text[sentence_start..sentence_end], sentence_start, &words);
+            let clusters = alliteration_clusters(
+                &text[sentence_start..sentence_end],
+                sentence_start,
+                &words,
+                &url_spans,
+            );
             let pair_clusters: Vec<_> = clusters
                 .iter()
                 .filter(|cluster| cluster.count >= 2)
@@ -636,15 +698,17 @@ fn make_anaphora_finder() -> impl Fn(&str) -> Vec<RawMatch> {
     let word_re = Regex::new(r"[A-Za-z'\u{2019}-]+").expect("invalid anaphora word regex");
 
     move |text: &str| {
+        let url_spans = url_spans(text);
         let sentences: Vec<(usize, usize, String)> = sentence_re
             .find_iter(text)
             .filter_map(|m| {
                 let word = word_re.find(m.as_str())?;
-                Some((
-                    m.start() + word.start(),
-                    m.end(),
-                    word.as_str().to_lowercase(),
-                ))
+                let start = m.start() + word.start();
+                let end = m.start() + word.end();
+                if in_url_span(&url_spans, start, end) {
+                    return None;
+                }
+                Some((start, m.end(), word.as_str().to_lowercase()))
             })
             .collect();
 
@@ -682,20 +746,34 @@ fn make_echo_finder() -> impl Fn(&str) -> Vec<RawMatch> {
     let word_re = Regex::new(r"[a-z0-9'\u{2019}-]+").expect("invalid echo word regex");
 
     move |text: &str| {
-        let sentences: Vec<(usize, usize, String)> = sentence_re
-            .find_iter(text)
-            .filter(|m| m.as_str().split_whitespace().count() >= 4)
-            .map(|m| (m.start(), m.end(), m.as_str().to_lowercase()))
-            .collect();
-
-        let grams = |sentence: &str| -> BTreeSet<String> {
-            let words: Vec<_> = word_re.find_iter(sentence).map(|m| m.as_str()).collect();
+        let url_spans = url_spans(text);
+        let grams = |sentence: &str, sentence_start: usize| -> BTreeSet<String> {
+            let words: Vec<_> = word_re
+                .find_iter(sentence)
+                .filter(|m| {
+                    !in_url_span(
+                        &url_spans,
+                        sentence_start + m.start(),
+                        sentence_start + m.end(),
+                    )
+                })
+                .map(|m| m.as_str())
+                .collect();
             let mut out = BTreeSet::new();
             for i in 0..words.len().saturating_sub(3) {
                 out.insert(words[i..i + 4].join(" "));
             }
             out
         };
+
+        let sentences: Vec<(usize, usize, String, BTreeSet<String>)> = sentence_re
+            .find_iter(text)
+            .filter(|m| m.as_str().split_whitespace().count() >= 4)
+            .map(|m| {
+                let sentence_grams = grams(m.as_str(), m.start());
+                (m.start(), m.end(), m.as_str().to_lowercase(), sentence_grams)
+            })
+            .collect();
 
         let mut found = Vec::new();
         let mut i = 0;
@@ -706,9 +784,9 @@ fn make_echo_finder() -> impl Fn(&str) -> Vec<RawMatch> {
                 if sentences[j + 1].0 - sentences[j].1 > 3 {
                     break;
                 }
-                let a = grams(&sentences[j].2);
-                let b = grams(&sentences[j + 1].2);
-                let Some(gram) = a.intersection(&b).max_by_key(|gram| gram.len()) else {
+                let a = &sentences[j].3;
+                let b = &sentences[j + 1].3;
+                let Some(gram) = a.intersection(b).max_by_key(|gram| gram.len()) else {
                     break;
                 };
                 shared.clone_from(gram);
@@ -1069,7 +1147,7 @@ fn build_additional_patterns() -> Vec<Pattern> {
             name: "Chatbot leftovers",
             weight: 3,
             finder: Box::new(make_regex_finder(
-                r"(?i)\bas\s+an\s+ai(?:\s+language)?\s+model\b|\bas\s+of\s+my\s+last\s+(?:update|training)\b|\bknowledge\s+cutoff\b|\bI\s+(?:cannot|can['\u{2019}]t|do\s+not|don['\u{2019}]t)\s+(?:browse\s+the\s+internet|access\s+real-?time)\b|contentReference|oaicite|turn0(?:search|news|image)\d*|attributableIndex|utm_source=",
+                r"(?i)\bas\s+an\s+ai(?:\s+language)?\s+model\b|\bas\s+of\s+my\s+last\s+(?:update|training)\b|\bknowledge\s+cutoff\b|\bI\s+(?:cannot|can['\u{2019}]t|do\s+not|don['\u{2019}]t)\s+(?:browse\s+the\s+internet|access\s+real-?time)\b|contentReference|oaicite|turn0(?:search|news|image)\d*|attributableIndex",
             )),
         },
         Pattern {
@@ -1158,8 +1236,11 @@ fn build_additional_patterns() -> Vec<Pattern> {
             id: "x-is-dead",
             name: "\"X is dead\"",
             weight: 2,
-            finder: Box::new(make_regex_finder(
-                r"(?i)\b[\w\s]{3,30}\s+(?:is|are)\s+dead\b|\blong\s+live\s+\w+",
+            finder: Box::new(make_fancy_regex_finder(
+                // The subject must start on its own word (not mid-token, so
+                // `example.com is dead` cannot match); two chars minimum so
+                // "AI is dead" is caught.
+                r"(?i)(?<!\S)[\w\s]{2,30}\s+(?:is|are)\s+dead\b|\blong\s+live\s+\w+",
             )),
         },
         Pattern {
